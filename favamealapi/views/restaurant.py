@@ -1,7 +1,9 @@
 """View module for handling requests about restaurants"""
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseServerError
 from rest_framework import serializers, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 from favamealapi.models import Restaurant
@@ -13,7 +15,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ('id', 'name', 'address', 'favorite',)
+        # fields = ('id', 'name', 'address', 'favorite',)
+        fields = ('id', 'name', 'address',)
 
 class FaveSerializer(serializers.ModelSerializer):
     """JSON serializer for favorites"""
@@ -79,3 +82,30 @@ class RestaurantView(ViewSet):
 
     # TODO: Write a custom action named `star` that will allow a client to
     # send a POST and a DELETE request to /restaurant/2/star
+
+    @action(methods=['post','delete'], detail=True)
+    def star(self, request, pk=None):
+        user = User.objects.get(pk=request.auth.user.id)
+
+        try:
+            rest = Restaurant.objects.get(pk=pk)
+        except Restaurant.DoesNotExist:
+            return Response(
+                {'message': 'This is not a restaurant that we know of...'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if request.method == "POST":
+            try:
+                rest.userfavoriterestaurants.add(user)
+                return Response({}, status=status.HTTP_201_CREATED)
+            except Exception as ex:
+                return Response({'message': ex.args[0]})
+            
+        elif request.method == "DELETE":
+            try:
+                rest.userfavoriterestaurants.remove(user)
+                return Response({}, status=status.HTTP_204_NO_CONTENT)
+            except Exception as ex:
+                return Response({'message': ex.args[0]})
+        
