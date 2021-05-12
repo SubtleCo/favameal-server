@@ -15,8 +15,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        # fields = ('id', 'name', 'address', 'favorite',)
-        fields = ('id', 'name', 'address',)
+        fields = ('id', 'name', 'address', 'favorite',)
+        # fields = ('id', 'name', 'address',)
 
 class FaveSerializer(serializers.ModelSerializer):
     """JSON serializer for favorites"""
@@ -54,10 +54,16 @@ class RestaurantView(ViewSet):
         Returns:
             Response -- JSON serialized game instance
         """
+        user = User.objects.get(pk=request.auth.user.id)
         try:
             restaurant = Restaurant.objects.get(pk=pk)
 
             # TODO: Add the correct value to the `favorite` property of the requested restaurant
+            try:
+                FavoriteRestaurant.objects.get(user=user, restaurant=restaurant)
+                restaurant.favorite = True
+            except FavoriteRestaurant.DoesNotExist:
+                restaurant.favorite = False
 
             serializer = RestaurantSerializer(
                 restaurant, context={'request': request})
@@ -97,14 +103,14 @@ class RestaurantView(ViewSet):
         
         if request.method == "POST":
             try:
-                rest.userfavoriterestaurants.add(user)
+                rest.favorites.add(user)
                 return Response({}, status=status.HTTP_201_CREATED)
             except Exception as ex:
                 return Response({'message': ex.args[0]})
             
         elif request.method == "DELETE":
             try:
-                rest.userfavoriterestaurants.remove(user)
+                rest.favorites.remove(user)
                 return Response({}, status=status.HTTP_204_NO_CONTENT)
             except Exception as ex:
                 return Response({'message': ex.args[0]})
