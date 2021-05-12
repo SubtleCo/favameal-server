@@ -1,6 +1,7 @@
 """View module for handling requests about meals"""
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseServerError
+from django.http.response import Http404
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.viewsets import ViewSet
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework import serializers
 from favamealapi.models import Meal, MealRating, Restaurant, FavoriteMeal
 from favamealapi.views.restaurant import RestaurantSerializer
+from django.contrib.auth.models import User
 
 
 class MealSerializer(serializers.ModelSerializer):
@@ -17,7 +19,7 @@ class MealSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meal
         # fields = ('id', 'name', 'restaurant', 'user_rating', 'avg_rating')
-        fields = ('id', 'name', 'restaurant',)
+        fields = ('id', 'name', 'restaurant', 'favorite')
 
 
 class MealView(ViewSet):
@@ -48,6 +50,8 @@ class MealView(ViewSet):
         Returns:
             Response -- JSON serialized meal instance
         """
+        user = User.objects.get(pk=request.auth.user.id)
+
         try:
             meal = Meal.objects.get(pk=pk)
 
@@ -56,7 +60,11 @@ class MealView(ViewSet):
             # TODO: Get the average rating for requested meal and assign to `avg_rating` property
 
             # TODO: Assign a value to the `is_favorite` property of requested meal
-
+            try:
+                FavoriteMeal.objects.get(meal=meal, user=user)
+                meal.favorite = True
+            except FavoriteMeal.DoesNotExist:
+                meal.favorite = False
 
             serializer = MealSerializer(
                 meal, context={'request': request})
@@ -70,6 +78,8 @@ class MealView(ViewSet):
         Returns:
             Response -- JSON serialized list of meals
         """
+        user = User.objects.get(pk=request.auth.user.id)
+        
         meals = Meal.objects.all()
 
         # TODO: Get the rating for current user and assign to `user_rating` property
@@ -77,6 +87,13 @@ class MealView(ViewSet):
         # TODO: Get the average rating for each meal and assign to `avg_rating` property
 
         # TODO: Assign a value to the `is_favorite` property of each meal
+        for meal in meals:
+            try:
+                FavoriteMeal.objects.get(meal=meal, user=user)
+                meal.favorite = True
+            except FavoriteMeal.DoesNotExist:
+                meal.favorite = False
+        
 
         serializer = MealSerializer(
             meals, many=True, context={'request': request})
@@ -94,3 +111,30 @@ class MealView(ViewSet):
 
     # TODO: Add a custom action named `star` that will allow a client to send a
     #  POST and a DELETE request to /meals/3/star.
+
+
+    @action(methods=['post','delete'], detail=True)
+    def star(self, request, pk=None):
+        user = User.objects.get(pk=request.auth.user.id)
+
+        try:
+            meal = Meal.objects.get(pk=pk)
+        except Meal.DoesNotExist:
+            return Response(
+                {'message': 'Meal not found in the database'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if request.method == "POST":
+            try:
+                meal.favorites.add(user)
+                return Response({}, status=status.HTTP_201_CREATED)
+            except Exception as ex:
+                return Response({'message': ex.args[0]})
+
+        elif request.method == "DELETE":
+            try:
+                meal.favorites.remove(user)
+                return Response({}, status=status.HTTP_204_NO_CONTENT)
+            except Exception as ex:
+                return Response({'message': ex.args[0]})
