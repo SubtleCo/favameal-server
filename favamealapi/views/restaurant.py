@@ -78,6 +78,14 @@ class RestaurantView(ViewSet):
             Response -- JSON serialized list of restaurants
         """
         restaurants = Restaurant.objects.all()
+        user = User.objects.get(pk=request.auth.user.id)
+
+        for rest in restaurants:
+            try:
+                FavoriteRestaurant.objects.get(user=user, restaurant=rest)
+                rest.favorite = True
+            except FavoriteRestaurant.DoesNotExist:
+                rest.favorite = False
 
         # TODO: Add the correct value to the `favorite` property of each restaurant
 
