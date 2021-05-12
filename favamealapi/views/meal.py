@@ -19,7 +19,22 @@ class MealSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meal
         # fields = ('id', 'name', 'restaurant', 'user_rating', 'avg_rating')
-        fields = ('id', 'name', 'restaurant', 'favorite')
+        fields = ('id', 'name', 'restaurant', 'favorite', 'rating', 'average_rating')
+
+# class UserSerializer(serializers.ModelSerializer):
+#     """JSON serializer for meal rater's related Django user"""
+#     class Meta:
+#         model = User
+#         fields = ['first_name', 'last_name']
+
+# class RatingSerializer(serializers.ModelSerializer):
+#     """JSON serializer for MealRatings"""
+#     meal = MealSerializer(many=False)
+#     user = UserSerializer(many=False)
+
+#     class Meta:
+#         model = MealRating
+#         fields = ['user', 'meal', 'rating']
 
 
 class MealView(ViewSet):
@@ -66,6 +81,13 @@ class MealView(ViewSet):
             except FavoriteMeal.DoesNotExist:
                 meal.favorite = False
 
+            try:
+                ratingInstance = MealRating.objects.get(meal=meal, user=user)
+                meal.rating = ratingInstance.rating
+            except MealRating.DoesNotExist:
+                meal.rating = 0
+
+
             serializer = MealSerializer(
                 meal, context={'request': request})
             return Response(serializer.data)
@@ -93,6 +115,12 @@ class MealView(ViewSet):
                 meal.favorite = True
             except FavoriteMeal.DoesNotExist:
                 meal.favorite = False
+            
+            try:
+                ratingInstance = MealRating.objects.get(meal=meal, user=user)
+                meal.rating = ratingInstance.rating
+            except MealRating.DoesNotExist:
+                meal.rating = 0
         
 
         serializer = MealSerializer(
@@ -100,11 +128,6 @@ class MealView(ViewSet):
 
         return Response(serializer.data)
 
-    # TODO: Add a custom action named `rate` that will allow a client to send a
-    #  POST and a PUT request to /meals/3/rate with a body of..
-    #       {
-    #           "rating": 3
-    #       }
 
 
 
@@ -138,3 +161,51 @@ class MealView(ViewSet):
                 return Response({}, status=status.HTTP_204_NO_CONTENT)
             except Exception as ex:
                 return Response({'message': ex.args[0]})
+    
+    # TODO: Add a custom action named `rate` that will allow a client to send a
+    #  POST and a PUT request to /meals/3/rate with a body of..
+    #       {
+    #           "rating": 3
+    #       }
+    @action(methods=['post','put'], detail=True)
+    def rate(self, request, pk=None):
+        user = User.objects.get(pk=request.auth.user.id)
+
+        try:
+            meal = Meal.objects.get(pk=pk)
+        except Meal.DoesNotExist:
+            return Response(
+                {'message': 'Meal not found in the database'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if request.method == "POST":
+            try:
+                MealRating.objects.get(user=user, meal=meal)
+                return Response(
+                    {'message': 'You already rated this meal, use a PUT request!'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except MealRating.DoesNotExist:
+                rating = MealRating()
+                rating.user = user
+                rating.meal = meal
+                rating.rating = request.data['rating']
+
+                try:
+                    rating.save()
+                    return Response({}, status=status.HTTP_201_CREATED)
+                except ValidationError as ex:
+                    return Response({'reason': ex.message}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if request.method == "PUT":
+            try:
+                rating = MealRating.objects.get(meal=meal, user=user)
+            except MealRating.DoesNotExist:
+                return Response({'message': 'You need to rate a meal before you can edit the rating'})
+
+            rating.rating = request.data['rating']
+            rating.save()
+
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+
