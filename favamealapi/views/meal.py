@@ -18,23 +18,7 @@ class MealSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Meal
-        # fields = ('id', 'name', 'restaurant', 'user_rating', 'avg_rating')
         fields = ('id', 'name', 'restaurant', 'favorite', 'rating', 'average_rating')
-
-# class UserSerializer(serializers.ModelSerializer):
-#     """JSON serializer for meal rater's related Django user"""
-#     class Meta:
-#         model = User
-#         fields = ['first_name', 'last_name']
-
-# class RatingSerializer(serializers.ModelSerializer):
-#     """JSON serializer for MealRatings"""
-#     meal = MealSerializer(many=False)
-#     user = UserSerializer(many=False)
-
-#     class Meta:
-#         model = MealRating
-#         fields = ['user', 'meal', 'rating']
 
 
 class MealView(ViewSet):
@@ -75,11 +59,12 @@ class MealView(ViewSet):
             # TODO: Get the average rating for requested meal and assign to `avg_rating` property
 
             # TODO: Assign a value to the `is_favorite` property of requested meal
-            try:
-                FavoriteMeal.objects.get(meal=meal, user=user)
-                meal.favorite = True
-            except FavoriteMeal.DoesNotExist:
-                meal.favorite = False
+            meal.favorite = user in meal.favorites.all()
+            # try:
+            #     FavoriteMeal.objects.get(meal=meal, user=user)
+            #     meal.favorite = True
+            # except FavoriteMeal.DoesNotExist:
+            #     meal.favorite = False
 
             try:
                 ratingInstance = MealRating.objects.get(meal=meal, user=user)
