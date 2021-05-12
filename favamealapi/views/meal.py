@@ -59,12 +59,17 @@ class MealView(ViewSet):
             # TODO: Get the average rating for requested meal and assign to `avg_rating` property
 
             # TODO: Assign a value to the `is_favorite` property of requested meal
-            meal.favorite = user in meal.favorites.all()
+
+            ### Long way of getting a true or false value based on IF the user is in this meal's favorites list (FavoriteMeal table)
             # try:
             #     FavoriteMeal.objects.get(meal=meal, user=user)
             #     meal.favorite = True
             # except FavoriteMeal.DoesNotExist:
             #     meal.favorite = False
+
+            ### Short way of doing the same thing
+            meal.favorite = user in meal.favorites.all()
+
 
             try:
                 ratingInstance = MealRating.objects.get(meal=meal, user=user)
